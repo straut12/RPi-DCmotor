@@ -20,10 +20,16 @@ def valmap(value, istart, istop, ostart, ostop):
 MQTT_ADDRESS = '10.0.0.22'
 #MQTT_USER = 'chawn1272'
 #MQTT_PASSWORD = 'dewberry2233'
-MQTT_TOPIC = 'cocoacrisp/buggy/+'  # + means one or more occurrence
+MQTT_TOPIC = 'cocoacrisp/buggy/motor'  # + means one or more occurrence
 MQTT_REGEX = 'cocoacrisp/([^/]+)/([^/]+)'  #regular expression.  ^ means start with
 MQTT_CLIENT_ID = 'cocoacrisp'
-topic_pub = 'cocoacrisp/buggy/all'
+topic_pub = 'cocoacrisp/buggy/speedSensor'
+
+class motorObj(NamedTuple):
+    location: str
+    device: str
+    motor: str
+    value: float
 
 # create call back functions and then link them to the mqtt callback below in main program
 def on_connect(client, userdata, flags, rc):
@@ -33,12 +39,29 @@ def on_connect(client, userdata, flags, rc):
 
 #on message will receive data from client 
 def on_message(client, userdata, msg):
+    global speed1, speed2
     """The callback for when a PUBLISH message is received from the server."""
-    print(msg.topic + ' ' + str(msg.payload))
-
+    #print(msg.topic + ' ' + str(msg.payload))
+    sensor_data = str(msg.payload.decode("utf-8", "ignore"))     #set sensor_data to Class SensorData return
+    #sensor_data = parse_mqtt_message(msg.topic, msg.payload.decode('utf-8'))
+    dataD = json.loads(sensor_data) # decode json data
+    speed1 = dataD[0]['m1']
+    speed2 = dataD[0]['m2']
+        
+def parse_mqtt_message(topic, payload):
+    match = re.match(MQTT_REGEX, topic)      # check if topic matches the test/sensor/temperature format
+    if match.group(2) == 'motor':
+        location = match.group(0)
+        device = match.group(1)
+        motor = match.group(2)
+        if device == 'status':
+            return None
+        return motorObj(location, device, motor, payload)  # returns the data from Class ServoObj
+    
 #on publish will send data to client
 def on_publish(client, userdata, mid):
-    print("mid: "+str(mid))
+    pass
+    #print("mid: "+str(mid))
 
 #=======   SETUP GPIO =================#
 GPIO.setwarnings(False)
@@ -68,7 +91,7 @@ enA.start(0)                       # start PWM at 0 duty cycle
 enB.start(0)
 
 #=======   Speed Sensor Setup =================#
-speedSensorON = False  # turn speed sensor on/off
+speedSensorON = True  # turn speed sensor on/off
 if speedSensorON:
   enc1 = motorEncoder(17)
   enc1.setup()
@@ -76,7 +99,7 @@ if speedSensorON:
   enc2.setup()
 
 #==== variables used for testing loop ======#
-timeFaster = 10            # interval to increase speed
+timeFaster = 20            # interval to increase speed
 timeStop = timeFaster * 2  # interval to stop test
 okToTest = True            # flag to stop test loop
 
@@ -84,7 +107,7 @@ okToTest = True            # flag to stop test loop
 timeReportIntv = 1       # interval for RPM checks
 time0 = time()           # beginnning time used for reporting check
 timeR = time()           # timer used for reporting check
-speed1, speed2 = 30, 30  # initial speed
+speed1, speed2 = 0, 0  # initial speed 
 buggyD = {}              # dictionary to send data as JSON thru MQTT
 
 #==== start mqtt functions ===========#
@@ -104,23 +127,24 @@ while okToTest:
     enc2.monitorRPM()
   if (time() - timeR) > timeReportIntv:
     timeR = time()   # reset initial reporting timer
+    #print('speed1 {0:2.1f} speed2 {1:2.1f}'.format(speed1, speed2))
     if speedSensorON:
       enc1.rpm, enc1.freq = enc1.reportRPM()
       enc2.rpm, enc2.freq = enc2.reportRPM()
       rpmDelta = enc1.rpm - enc2.rpm
       if rpmDelta < 100 and rpmDelta > -100:
         rpmAdj = int(valmap(rpmDelta, -100, 100, -10, 10))
-        speed2 = speed2 + rpmAdj
-        speed1 = speed1 - rpmAdj
+        #speed2 = speed2 + rpmAdj
+        #speed1 = speed1 - rpmAdj
       #print("rpm1:{0:3.0f} rpm2:{1:3.0f} freq1: {2:3.0f} freq2: {3:3.0f}".format(enc1.rpm, enc2.rpm, enc1.freq, enc2.freq))
-      print("freq1: {0} freq2: {1} speed1: {2} speed2: {3}".format(enc1.freq, enc2.freq, speed1 + 100, speed2 + 100))
+      #print("freq1: {0} freq2: {1} speed1: {2} speed2: {3}".format(enc1.freq, enc2.freq, speed1 + 100, speed2 + 100))
       buggyD = {"irpm1":str(enc1.rpm), "irpm2":str(enc2.rpm), "ispeed1":str(speed1), "ispeed2":str(speed2)}
     else:
       buggyD = {"ispeed1":str(speed1), "ispeed2":str(speed2)}
     buggyMQTT=json.dumps(buggyD)
     mqtt_client.publish(topic_pub, buggyMQTT)
-  if (time() - time0) > timeFaster:
-    speed1, speed2 = 90, 90
+  #if (time() - time0) > timeFaster:
+  #  speed1, speed2 = 90, 90
   if (time() - time0) > timeStop:
     okToTest = False
 print('stopping test')

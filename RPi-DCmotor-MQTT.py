@@ -45,9 +45,12 @@ def on_message(client, userdata, msg):
     sensor_data = str(msg.payload.decode("utf-8", "ignore"))     #set sensor_data to Class SensorData return
     #sensor_data = parse_mqtt_message(msg.topic, msg.payload.decode('utf-8'))
     dataD = json.loads(sensor_data) # decode json data
-    speed1 = dataD[0]['m1']
-    speed2 = dataD[0]['m2']
-        
+    speed1 = dataD[0]['right']
+    speed2 = dataD[0]['left']
+    moving = dataD[0]['moving']
+    print(moving)
+    
+    # not using the parse-mqtt-message right now
 def parse_mqtt_message(topic, payload):
     match = re.match(MQTT_REGEX, topic)      # check if topic matches the test/sensor/temperature format
     if match.group(2) == 'motor':
@@ -99,11 +102,11 @@ if speedSensorON:
   enc2.setup()
 
 #==== variables used for testing loop ======#
-timeFaster = 20            # interval to increase speed
-timeStop = timeFaster * 2  # interval to stop test
+timeStop = 600  # interval to stop test
 okToTest = True            # flag to stop test loop
 
 #==== variables ====================#
+moving = 'start-up'
 timeReportIntv = 1       # interval for RPM checks
 time0 = time()           # beginnning time used for reporting check
 timeR = time()           # timer used for reporting check
@@ -129,7 +132,12 @@ while okToTest:
     enc2.monitorRPM()
   if (time() - timeR) > timeReportIntv:
     timeR = time()   # reset initial reporting timer
-    if speedSensorON:
+    enc1.rpm, enc1.freq = enc1.reportRPM()
+    enc2.rpm, enc2.freq = enc2.reportRPM()
+    buggyD = {"irpm1":str(enc1.rpm), "irpm2":str(enc2.rpm), "ispeed1":str(speed1), "ispeed2":str(speed2)}
+    buggyMQTT=json.dumps(buggyD)
+    mqtt_client.publish(topic_pub, buggyMQTT)
+    if speedSensorON and moving == 'straight1':
       enc1.rpm, enc1.freq = enc1.reportRPM()
       enc2.rpm, enc2.freq = enc2.reportRPM()
       rpmDelta = enc1.rpm - enc2.rpm
@@ -137,15 +145,11 @@ while okToTest:
         rpmAdj = int(valmap(rpmDelta, -100, 100, -10, 10))
         speed2 = speed2 + rpmAdj
         speed1 = speed1 - rpmAdj
-      #print("rpm1:{0:3.0f} rpm2:{1:3.0f} freq1: {2:3.0f} freq2: {3:3.0f}".format(enc1.rpm, enc2.rpm, enc1.freq, enc2.freq))
-      #print("freq1: {0} freq2: {1} speed1: {2} speed2: {3}".format(enc1.freq, enc2.freq, speed1 + 100, speed2 + 100))
-      buggyD = {"irpm1":str(enc1.rpm), "irpm2":str(enc2.rpm), "ispeed1":str(speed1), "ispeed2":str(speed2)}
-    else:
-      buggyD = {"ispeed1":str(speed1), "ispeed2":str(speed2)}
-    buggyMQTT=json.dumps(buggyD)
-    mqtt_client.publish(topic_pub, buggyMQTT)
-  #if (time() - time0) > timeFaster:
-  #  speed1, speed2 = 90, 90
+      #buggyD = {"irpm1":str(enc1.rpm), "irpm2":str(enc2.rpm), "ispeed1":str(speed1), "ispeed2":str(speed2)}
+    #else:
+      #buggyD = {"ispeed1":str(speed1), "ispeed2":str(speed2)}
+    #buggyMQTT=json.dumps(buggyD)
+    #mqtt_client.publish(topic_pub, buggyMQTT)
   if (time() - time0) > timeStop:
     okToTest = False
 print('stopping test')

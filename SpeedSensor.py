@@ -8,15 +8,14 @@ class motorEncoder:
     self.pinE = pinE          # data pin on RPi
     self.intervalCheck = 0.5  # how frequently to calculate the rpm
     self.time0 = time()
-    self.time1 = self.time0
+    #self.time1 = self.time0
     self.counterR = 0
     self.rpm = 0
     self.freq = 0
-    self.SLOTS = 20  # of slots in encoder wheel
+    self.SLOTS = 40  # of interrupts in one revolution
 
   def handle_interrupt(self, channel):
     self.counterR +=1
-    self.time1 = time()   # records the time of each IRQ to flag the time interval criteria
 
   def setup(self):         # setup GPIO and interrupt event
     GPIO.setmode(GPIO.BCM)
@@ -24,14 +23,14 @@ class motorEncoder:
     GPIO.add_event_detect(self.pinE, GPIO.RISING, callback=self.handle_interrupt) 
 
   def monitorRPM(self):  # if time interval met, based on IRQ, will calculate freq/rpm
-    if (self.time1 - self.time0) > self.intervalCheck:
-      self.freq = int(self.counterR/(self.time1 - self.time0))
+    if (time() - self.time0) > self.intervalCheck:
+      self.freq = int(self.counterR/(time() - self.time0))
       self.rpm = int(self.freq/self.SLOTS*60)
       self.counterR = 0          # reset the counter
       self.time0 = time()        # reset the time 0
-  
+
   def reportRPM(self):
-    return self.rpm, self.freq   # report teh rpm and freq
+    return self.rpm, self.freq   # report the rpm and freq
  
 
 if __name__ == "__main__":

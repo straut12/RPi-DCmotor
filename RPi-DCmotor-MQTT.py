@@ -66,7 +66,7 @@ def on_publish(client, userdata, mid):
 #=======   SETUP GPIO =================#
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
-frequency = 2000
+frequency = 1500
 
 enApin = 12   # assign pins
 in1 = 24
@@ -120,22 +120,23 @@ mqtt_client.connect(MQTT_ADDRESS, 1883)  # connect to the mqtt
 mqtt_client.loop_start()   # other option is client.loop_forever() but it is blocking
 
 while okToTest:
-  dc_motor1.forward(speed1)
-  dc_motor2.forward(speed2)
+  speed1 = min(100, max(-100, speed1))
+  speed2 = min(100, max(-100, speed2))
+  dc_motor1.forward(speed1) if speed1 > 0 else dc_motor1.backwards(abs(speed1)) if speed1 < 0 else dc_motor1.stop()
+  dc_motor2.forward(speed2) if speed2 > 0 else dc_motor2.backwards(abs(speed2)) if speed2 < 0 else dc_motor2.stop()
   if speedSensorON:         # start monitoring rpm.. can be more frequent than the reportRPM below
     enc1.monitorRPM()
     enc2.monitorRPM()
   if (time() - timeR) > timeReportIntv:
     timeR = time()   # reset initial reporting timer
-    #print('speed1 {0:2.1f} speed2 {1:2.1f}'.format(speed1, speed2))
     if speedSensorON:
       enc1.rpm, enc1.freq = enc1.reportRPM()
       enc2.rpm, enc2.freq = enc2.reportRPM()
       rpmDelta = enc1.rpm - enc2.rpm
       if rpmDelta < 100 and rpmDelta > -100:
         rpmAdj = int(valmap(rpmDelta, -100, 100, -10, 10))
-        #speed2 = speed2 + rpmAdj
-        #speed1 = speed1 - rpmAdj
+        speed2 = speed2 + rpmAdj
+        speed1 = speed1 - rpmAdj
       #print("rpm1:{0:3.0f} rpm2:{1:3.0f} freq1: {2:3.0f} freq2: {3:3.0f}".format(enc1.rpm, enc2.rpm, enc1.freq, enc2.freq))
       #print("freq1: {0} freq2: {1} speed1: {2} speed2: {3}".format(enc1.freq, enc2.freq, speed1 + 100, speed2 + 100))
       buggyD = {"irpm1":str(enc1.rpm), "irpm2":str(enc2.rpm), "ispeed1":str(speed1), "ispeed2":str(speed2)}

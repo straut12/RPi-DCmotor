@@ -18,8 +18,6 @@ def valmap(value, istart, istop, ostart, ostop):
 
 #=======   SETUP MQTT =================#
 MQTT_ADDRESS = '10.0.0.22'
-#MQTT_USER = 'chawn1272'
-#MQTT_PASSWORD = 'dewberry2233'
 MQTT_TOPIC = 'cocoacrisp/buggy/motor'  # + means one or more occurrence
 MQTT_REGEX = 'cocoacrisp/([^/]+)/([^/]+)'  #regular expression.  ^ means start with
 MQTT_CLIENT_ID = 'cocoacrisp'
